@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Início - YTFBVIDS{% endblock %}
+{% block content %}
+
+<div class="text-center mb-5">
+  <h1 class="display-5 fw-bold mb-3">
+    <i class="bi bi-cloud-download"></i> Baixar Vídeo
+  </h1>
+  <p class="text-secondary mb-4">
+    Cole qualquer link do YouTube, Facebook, Instagram, TikTok, Twitter e mais.
+  </p>
+
+  <form id="downloadForm" action="/baixar" method="post" class="row g-2 justify-content-center">
+    <div class="col-lg-8 col-md-10">
+      <div class="input-group input-group-lg">
+        <input type="url" name="url" id="urlInput" class="form-control" placeholder="https://www.facebook.com/reel/..." required>
+        <button type="submit" id="downloadButton" class="btn btn-primary px-4">
+          <i class="bi bi-download"></i> Baixar
+        </button>
+      </div>
+
+      <div id="progressArea" class="mt-3 text-start" style="display:none;">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <small id="downloadStatus" class="text-light fw-semibold">Preparando download...</small>
+          <small id="downloadPercent" class="text-secondary">0%</small>
+        </div>
+        <div class="progress" style="height: 24px;">
+          <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width:0%;">
+            0%
+          </div>
+        </div>
+        <div id="downloadDetails" class="text-secondary small mt-2"></div>
+        <div id="downloadActions" class="mt-3" style="display:none;">
+          <a href="/videos" class="btn btn-outline-light">
+            <i class="bi bi-play-circle"></i> Ver vídeos baixados
+          </a>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% if videos %}
+<h5 class="mb-3"><i class="bi bi-clock-history"></i> Downloads Recentes</h5>
+<div class="row g-3">
+  {% for v in videos %}
+  <div class="col-lg-3 col-md-4 col-sm-6">
+    <div class="card h-100">
+      <a href="/videos/{{ v.filename }}/preview">
+        {% if v.has_thumb %}
+        <img src="{{ v.thumbnail }}" class="card-img-top" alt="{{ v.filename }}">
+        {% else %}
+        <div class="card-img-top d-flex align-items-center justify-content-center bg-dark" style="aspect-ratio:16/9;">
+          <i class="bi bi-film" style="font-size:3rem;color:#555;"></i>
+        </div>
+        {% endif %}
+      </a>
+      <div class="card-body d-flex flex-column">
+        <p class="card-title mb-1" title="{{ v.filename }}">{{ v.filename }}</p>
+        <p class="card-text mb-2">
+          <span class="badge bg-dark me-1">{{ v.data }}</span>
+          <span class="badge bg-secondary me-1">{{ v.duration_str }}</span>
+          <span class="badge bg-secondary">{{ v.size_str }}</span>
+        </p>
+        <div class="mt-auto d-flex gap-1">
+          <a href="/videos/{{ v.filename }}/preview" class="btn btn-sm btn-outline-light flex-fill">
+            <i class="bi bi-play-fill"></i> Ver
+          </a>
+          <a href="/videos/{{ v.filename }}" class="btn btn-sm btn-outline-light flex-fill" download>
+            <i class="bi bi-download"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<div class="text-center mt-3">
+  <a href="/videos" class="btn btn-outline-light">Ver todos os vídeos <i class="bi bi-arrow-right"></i></a>
+</div>
+{% else %}
+<div class="empty-state">
+  <i class="bi bi-film"></i>
+  <h5>Nenhum vídeo baixado ainda</h5>
+  <p class="text-secondary">Cole uma URL acima e clique em Baixar para começar.</p>
+</div>
+{% endif %}
+
+<script>
+  const form = document.getElementById('downloadForm');
+  const urlInput = document.getElementById('urlInput');
+  const button = document.getElementById('downloadButton');
+  const progressArea = document.getElementById('progressArea');
+  const progressBar = document.getElementById('progressBar');
+  const statusText = document.getElementById('downloadStatus');
+  const percentText = document.getElementById('downloadPercent');
+  const details = document.getElementById('downloadDetails');
+  const actions = document.getElementById('downloadActions');
+  let polling = null;
+
+  function setProgress(percent, label) {
+    const safe = Math.max(0, Math.min(Number(percent) || 0, 100));
+    progressBar.style.width = safe + '%';
+    progressBar.textContent = label || `${safe}%`;
+    percentText.textContent = label || `${safe}%`;
+  }
+
+  function statusLabel(status) {
+    return {
+      aguardando: 'Aguardando...',
+      iniciando: 'Iniciando download...',
+      baixando: 'Baixando vídeo...',
+      processando: 'Processando / juntando áudio e vídeo...',
+      concluido: 'Download concluído!',
+      erro: 'Erro no download.'
+    }[status] || status;
+  }
+
+  async function pollProgress(jobId) {
+    const response = await fetch(`/progresso/${jobId}`);
+    const job = await response.json();
+
+    statusText.textContent = statusLabel(job.status);
+    setProgress(job.percent || 0, job.percent_text || `${job.percent || 0}%`);
+
+    const info = [];
+    if (job.filename) info.push(`Arquivo: ${job.filename}`);
+    if (job.speed) info.push(`Velocidade: ${job.speed}`);
+    if (job.eta) info.push(`ETA: ${job.eta}`);
+    if (job.error) info.push(`Erro: ${job.error}`);
+    details.textContent = info.join(' | ');
+
+    if (job.status === 'concluido') {
+      clearInterval(polling);
+      polling = null;
+      setProgress(100, '100%');
+      progressBar.classList.remove('progress-bar-animated');
+      progressBar.classList.add('bg-success');
+      button.disabled = false;
+      urlInput.disabled = false;
+      button.innerHTML = '<i class="bi bi-download"></i> Baixar';
+      actions.style.display = 'block';
+    }
+
+    if (job.status === 'erro') {
+      clearInterval(polling);
+      polling = null;
+      progressBar.classList.remove('progress-bar-animated');
+      progressBar.classList.add('bg-danger');
+      button.disabled = false;
+      urlInput.disabled = false;
+      button.innerHTML = '<i class="bi bi-download"></i> Tentar novamente';
+    }
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const formData = new FormData(form);
+    clearInterval(polling);
+    actions.style.display = 'none';
+    progressArea.style.display = 'block';
+    progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+    setProgress(0, '0%');
+    statusText.textContent = 'Enviando URL...';
+    details.textContent = '';
+    button.disabled = true;
+    urlInput.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Baixando';
+
+    try {
+      const response = await fetch('/baixar-async', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao iniciar download');
+
+      polling = setInterval(() => pollProgress(data.job_id), 1000);
+      pollProgress(data.job_id);
+    } catch (error) {
+      statusText.textContent = 'Erro ao iniciar download.';
+      details.textContent = error.message;
+      progressBar.classList.remove('progress-bar-animated');
+      progressBar.classList.add('bg-danger');
+      button.disabled = false;
+      urlInput.disabled = false;
+      button.innerHTML = '<i class="bi bi-download"></i> Tentar novamente';
+    }
+  });
+</script>
+
+{% endblock %}

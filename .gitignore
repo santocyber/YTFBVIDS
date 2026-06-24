@@ -1,0 +1,18 @@
+# Project-specific
+.server.pid
+
+# Media downloads & generated outputs
+downloads/
+cortes/
+audio/
+static/thumbnails/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db

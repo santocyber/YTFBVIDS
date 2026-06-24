@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}{{ filename }} - YTFBVIDS{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-8 col-md-10">
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Início</a></li>
+        <li class="breadcrumb-item"><a href="/{{ 'shorts' if tipo == 'short' else 'videos' }}">{{ 'Shorts' if tipo == 'short' else 'Vídeos' }}</a></li>
+        <li class="breadcrumb-item active">{{ filename[:40] }}{% if filename|length > 40 %}...{% endif %}</li>
+      </ol>
+    </ol>
+
+    <div class="card mb-3">
+      <div class="card-body p-2">
+        <video controls autoplay style="max-height:80vh;">
+          <source src="/{{ tipo }}s/{{ filename }}" type="video/mp4">
+        </video>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">{{ filename }}</h5>
+        <table class="table table-dark table-borderless table-sm mt-2 mb-0">
+          <tr>
+            <td class="text-secondary">Duração</td>
+            <td>
+              {% set m = (info.duration / 60)|int %}
+              {% set s = (info.duration % 60)|int %}
+              <strong>{{ m }}:{{ '%02d' % s }}</strong>
+            </td>
+          </tr>
+          <tr>
+            <td class="text-secondary">Resolução</td>
+            <td><strong>{{ info.width }}x{{ info.height }}</strong></td>
+          </tr>
+          <tr>
+            <td class="text-secondary">Tamanho</td>
+            <td>
+              {% set size = info.size %}
+              {% if size < 1024 * 1024 %}
+                <strong>{{ (size / 1024)|round(1) }} KB</strong>
+              {% else %}
+                <strong>{{ (size / (1024 * 1024))|round(1) }} MB</strong>
+              {% endif %}
+            </td>
+          </tr>
+        </table>
+        {% if tipo == 'short' and (prev_short or next_short) %}
+        <div class="d-flex gap-2 mb-3">
+          {% if prev_short %}
+          <a href="/shorts/{{ prev_short }}/preview" class="btn btn-outline-light flex-fill">
+            <i class="bi bi-skip-backward"></i> Anterior
+          </a>
+          {% endif %}
+          {% if next_short %}
+          <a href="/shorts/{{ next_short }}/preview" class="btn btn-outline-light flex-fill">
+            Próximo <i class="bi bi-skip-forward"></i>
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+        <div class="d-flex gap-2 mt-3">
+          <a href="/{{ tipo }}s/{{ filename }}" class="btn btn-primary" download>
+            <i class="bi bi-download"></i> Download
+          </a>
+          {% if tipo == 'video' %}
+          <div class="btn-group">
+            <a href="/videos/{{ filename }}/cenas" class="btn btn-outline-info">
+              <i class="bi bi-magic"></i> Shorts Automáticos
+            </a>
+            <form action="/videos/{{ filename }}/gerar-tudo" method="post" class="d-inline">
+              <input type="hidden" name="smart_crop" value="on">
+              <button class="btn btn-outline-info" onclick="return confirm('Gerar shorts de todas as cenas automaticamente?')">
+                <i class="bi bi-lightning"></i> Gerar Tudo
+              </button>
+            </form>
+          </div>
+          <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#cortarModal">
+            <i class="bi bi-scissors"></i> Corte Manual
+          </button>
+          <a href="/videos/{{ filename }}/audio" class="btn btn-outline-success">
+            <i class="bi bi-music-note-beamed"></i> Baixar Áudio
+          </a>
+          {% endif %}
+          <form action="/deletar/{{ filename }}" method="post" class="d-inline">
+            <button class="btn btn-outline-danger" onclick="return confirm('Deletar {{ filename }}?')">
+              <i class="bi bi-trash"></i> Deletar
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if tipo == 'video' %}
+<div class="modal fade" id="cortarModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form action="/videos/{{ filename }}/cortar" method="post">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-scissors"></i> Criar Short</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-secondary small mb-3">Cortando: <strong>{{ filename }}</strong></p>
+          <div class="mb-3">
+            <label class="form-label">Tempo de início (segundos)</label>
+            <input type="number" name="inicio" class="form-control" value="0" min="0">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Duração (segundos)</label>
+            <input type="number" name="duracao" class="form-control" value="30" min="1" max="60">
+          </div>
+          <p class="text-secondary small mb-0">
+            <i class="bi bi-info-circle"></i> O short será gerado em 1080x1920 (formato 9:16).
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-scissors"></i> Criar Short</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Shorts - YTFBVIDS{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="bi bi-scissors"></i> Shorts Gerados</h4>
+  <span class="badge bg-secondary fs-6">{{ shorts|length }}</span>
+</div>
+
+{% if shorts %}
+<div class="d-flex gap-2 mb-3 flex-wrap">
+  <span class="text-secondary me-1 align-self-center">Ordenar por:</span>
+  {% for opt, label in [('data','Data'),('tamanho','Tamanho'),('duracao','Duração')] %}
+  <a href="?sort={{ opt }}&order={% if sort_by==opt and order=='desc' %}asc{% else %}desc{% endif %}"
+     class="btn btn-sm {% if sort_by==opt %}btn-primary{% else %}btn-outline-light{% endif %}">
+    {{ label }}
+    {% if sort_by==opt %}<i class="bi bi-arrow-{% if order=='desc' %}down{% else %}up{% endif %}"></i>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+
+<div class="row g-3">
+  {% for s in shorts %}
+  <div class="col-lg-3 col-md-4 col-sm-6">
+    <div class="card h-100">
+      <a href="/shorts/{{ s.filename }}/preview">
+        {% if s.has_thumb %}
+        <img src="{{ s.thumbnail }}" class="card-img-top" alt="{{ s.filename }}" style="aspect-ratio:9/16;object-fit:cover;">
+        {% else %}
+        <div class="card-img-top d-flex align-items-center justify-content-center bg-dark" style="aspect-ratio:9/16;">
+          <i class="bi bi-phone" style="font-size:3rem;color:#555;"></i>
+        </div>
+        {% endif %}
+      </a>
+      <div class="card-body d-flex flex-column">
+        <p class="card-title mb-1" title="{{ s.filename }}">{{ s.filename }}</p>
+        <p class="card-text mb-2">
+          <span class="badge bg-dark me-1">{{ s.data }}</span>
+          <span class="badge bg-secondary me-1">{{ s.duration_str }}</span>
+          <span class="badge bg-secondary">{{ s.size_str }}</span>
+          {% if s.width and s.height %}
+          <span class="badge bg-secondary">{{ s.width }}x{{ s.height }}</span>
+          {% endif %}
+          <span class="badge bg-danger ms-1">9:16</span>
+        </p>
+        <div class="mt-auto d-flex gap-1">
+          <a href="/shorts/{{ s.filename }}/preview" class="btn btn-sm btn-outline-light flex-fill">
+            <i class="bi bi-play-fill"></i> Ver
+          </a>
+          <a href="/shorts/{{ s.filename }}" class="btn btn-sm btn-outline-light flex-fill" download>
+            <i class="bi bi-download"></i>
+          </a>
+          <form action="/deletar/{{ s.filename }}" method="post" class="d-inline">
+            <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Deletar {{ s.filename }}?')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <i class="bi bi-scissors"></i>
+  <h5>Nenhum short gerado ainda</h5>
+  <p class="text-secondary">Vá em <a href="/videos">Vídeos</a>, escolha um vídeo e clique em "Short" para criar.</p>
+</div>
+{% endif %}
+
+{% endblock %}

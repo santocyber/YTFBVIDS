@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Cenas Detectadas - YTFBVIDS{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h4 class="mb-0"><i class="bi bi-film"></i> Cenas e Partes Detectadas</h4>
+    <small class="text-secondary">
+      {{ filename }} &mdash; {{ scenes|length }} shorts sugeridos de até 30 segundos
+    </small>
+  </div>
+  <a href="/videos/{{ filename }}/preview" class="btn btn-outline-light btn-sm">
+    <i class="bi bi-arrow-left"></i> Voltar
+  </a>
+</div>
+
+{% if scenes %}
+<form id="shortForm" action="/videos/{{ filename }}/gerar-shorts-async" method="post">
+  <div class="alert alert-dark border-secondary text-light">
+    <i class="bi bi-info-circle"></i>
+    Vídeos/cenas longas são divididos automaticamente em vários shorts curtos de até 30 segundos.
+    Desmarque qualquer parte que não quiser gerar.
+  </div>
+
+  <div class="row g-3 mb-4">
+    {% for scene in scenes %}
+    <div class="col-lg-4 col-md-6">
+      <div class="card h-100">
+        <div class="position-relative">
+          {% if scene.thumb %}
+          <img src="{{ scene.thumb }}" class="card-img-top" alt="Short {{ scene.index + 1 }}" style="aspect-ratio:16/9;object-fit:cover;">
+          {% else %}
+          <div class="card-img-top d-flex align-items-center justify-content-center bg-dark" style="aspect-ratio:16/9;">
+            <i class="bi bi-image" style="font-size:2rem;color:#555;"></i>
+          </div>
+          {% endif %}
+          <div class="position-absolute top-0 start-0 m-2">
+            <div class="form-check">
+              <input class="form-check-input scene-check" type="checkbox" name="cenas" value="{{ scene.index }}" id="cena{{ scene.index }}" checked>
+              <label class="form-check-label text-white fw-bold" for="cena{{ scene.index }}" style="text-shadow:0 1px 4px rgba(0,0,0,.8);">
+                Short {{ scene.index + 1 }}
+              </label>
+            </div>
+          </div>
+          <span class="position-absolute bottom-0 end-0 m-2 badge bg-dark">
+            {{ scene.duration_str if scene.get('duration_str') else '%d:%02d'|format(scene.duration|int // 60, scene.duration|int % 60) }}
+          </span>
+        </div>
+        <div class="card-body py-2 px-3">
+          <div class="d-flex justify-content-between text-secondary small">
+            <span><i class="bi bi-play"></i> {{ scene.start_tc }}</span>
+            <span><i class="bi bi-stop"></i> {{ scene.end_tc }}</span>
+          </div>
+          {% if scene.part and scene.part > 1 %}
+          <small class="text-secondary"><i class="bi bi-scissors"></i> Parte {{ scene.part }} da mesma cena longa</small>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="smart_crop" id="smartCrop" checked>
+          <label class="form-check-label" for="smartCrop">
+            <i class="bi bi-person-bounding-box"></i> Smart Crop
+            <small class="text-secondary">(detectar rosto e centralizar)</small>
+          </label>
+        </div>
+        <small class="text-secondary">
+          Serão gerados shorts em 1080x1920 (9:16), com progresso em tempo real.
+        </small>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="submit" name="modo" value="selected" id="generateSelected" class="btn btn-primary btn-lg">
+          <i class="bi bi-scissors"></i> Gerar Selecionados
+        </button>
+        <button type="submit" name="modo" value="all" id="generateAll" class="btn btn-outline-info btn-lg">
+          <i class="bi bi-lightning"></i> Gerar Todas ({{ scenes|length }})
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="shortProgressArea" class="card" style="display:none;">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <small id="shortProgressStatus" class="text-light fw-semibold">Preparando geração...</small>
+        <small id="shortProgressPercent" class="text-secondary">0%</small>
+      </div>
+      <div class="progress" style="height:24px;">
+        <div id="shortProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%;">0%</div>
+      </div>
+      <div id="shortProgressDetails" class="text-secondary small mt-2"></div>
+      <div id="shortProgressActions" class="mt-3" style="display:none;">
+        <a href="/shorts" class="btn btn-outline-light">
+          <i class="bi bi-scissors"></i> Ver Shorts
+        </a>
+        <a href="/shorts/feed" class="btn btn-outline-info">
+          <i class="bi bi-phone"></i> Abrir Feed
+        </a>
+      </div>
+    </div>
+  </div>
+</form>
+{% else %}
+<div class="empty-state">
+  <i class="bi bi-film"></i>
+  <h5>Nenhuma cena detectada</h5>
+  <p class="text-secondary">O vídeo pode ser muito curto ou não pôde ser analisado.</p>
+  <a href="/videos/{{ filename }}/preview" class="btn btn-outline-light">Voltar</a>
+</div>
+{% endif %}
+
+<script>
+  const shortForm = document.getElementById('shortForm');
+  const progressArea = document.getElementById('shortProgressArea');
+  const progressBar = document.getElementById('shortProgressBar');
+  const progressStatus = document.getElementById('shortProgressStatus');
+  const progressPercent = document.getElementById('shortProgressPercent');
+  const progressDetails = document.getElementById('shortProgressDetails');
+  const progressActions = document.getElementById('shortProgressActions');
+  let shortPolling = null;
+
+  function setShortProgress(percent, label) {
+    const safe = Math.max(0, Math.min(Number(percent) || 0, 100));
+    progressBar.style.width = safe + '%';
+    progressBar.textContent = label || `${safe}%`;
+    progressPercent.textContent = label || `${safe}%`;
+  }
+
+  function shortStatusLabel(status) {
+    return {
+      aguardando: 'Aguardando...',
+      preparando: 'Preparando cenas...',
+      gerando: 'Gerando shorts...',
+      concluido: 'Geração concluída!',
+      erro: 'Erro na geração.'
+    }[status] || status;
+  }
+
+  async function pollShortProgress(jobId) {
+    const response = await fetch(`/progresso-short/${jobId}`);
+    const job = await response.json();
+
+    progressStatus.textContent = shortStatusLabel(job.status);
+    setShortProgress(job.percent || 0, job.percent_text || `${job.percent || 0}%`);
+
+    const info = [];
+    if (job.etapa) info.push(job.etapa);
+    if (job.arquivo) info.push(`Arquivo: ${job.arquivo}`);
+    if (job.error) info.push(`Aviso: ${job.error}`);
+    progressDetails.textContent = info.join(' | ');
+
+    if (job.status === 'concluido') {
+      clearInterval(shortPolling);
+      shortPolling = null;
+      setShortProgress(100, '100%');
+      progressBar.classList.remove('progress-bar-animated');
+      progressBar.classList.add('bg-success');
+      progressActions.style.display = 'block';
+      shortForm.querySelectorAll('button, input').forEach((el) => el.disabled = false);
+    }
+
+    if (job.status === 'erro') {
+      clearInterval(shortPolling);
+      shortPolling = null;
+      progressBar.classList.remove('progress-bar-animated');
+      progressBar.classList.add('bg-danger');
+      shortForm.querySelectorAll('button, input').forEach((el) => el.disabled = false);
+    }
+  }
+
+  shortForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submitter = event.submitter;
+    const formData = new FormData(shortForm);
+    if (submitter?.name) formData.set(submitter.name, submitter.value);
+
+    if (formData.get('modo') !== 'all' && !formData.getAll('cenas').length) {
+      alert('Selecione pelo menos uma cena/parte para gerar.');
+      return;
+    }
+
+    if (formData.get('modo') === 'all' && !confirm('Gerar shorts de todas as partes detectadas?')) {
+      return;
+    }
+
+    clearInterval(shortPolling);
+    progressArea.style.display = 'block';
+    progressActions.style.display = 'none';
+    progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+    setShortProgress(0, '0%');
+    progressStatus.textContent = 'Enviando tarefa...';
+    progressDetails.textContent = '';
+    shortForm.querySelectorAll('button, input').forEach((el) => el.disabled = true);
+
+    try {
+      const response = await fetch(shortForm.action, { method: 'POST', body: formData });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao iniciar geração');
+
+      shortPolling = setInterval(() => pollShortProgress(data.job_id), 1000);
+      pollShortProgress(data.job_id);
+    } catch (error) {
+      progressStatus.textContent = 'Erro ao iniciar geração.';
+      progressDetails.textContent = error.message;
+      progressBar.classList.remove('progress-bar-animated');
+      progressBar.classList.add('bg-danger');
+      shortForm.querySelectorAll('button, input').forEach((el) => el.disabled = false);
+    }
+  });
+</script>
+
+{% endblock %}

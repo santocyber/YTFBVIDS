@@ -1,0 +1,6 @@
+flask>=3.0
+yt-dlp>=2024.0
+opencv-python>=4.8  # optional — face detection for smart crop
+flask-cors>=5.0
+Flask-SocketIO>=5.0
+Flask-SQLAlchemy>=3.0

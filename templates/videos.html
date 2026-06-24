@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Vídeos - YTFBVIDS{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="bi bi-play-circle"></i> Vídeos Baixados</h4>
+  <span class="badge bg-secondary fs-6">{{ videos|length }}</span>
+</div>
+
+{% if videos %}
+<div class="d-flex gap-2 mb-3 flex-wrap">
+  <span class="text-secondary me-1 align-self-center">Ordenar por:</span>
+  {% for opt, label in [('data','Data'),('tamanho','Tamanho'),('duracao','Duração')] %}
+  <a href="?sort={{ opt }}&order={% if sort_by==opt and order=='desc' %}asc{% else %}desc{% endif %}"
+     class="btn btn-sm {% if sort_by==opt %}btn-primary{% else %}btn-outline-light{% endif %}">
+    {{ label }}
+    {% if sort_by==opt %}<i class="bi bi-arrow-{% if order=='desc' %}down{% else %}up{% endif %}"></i>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+
+<div class="row g-3">
+  {% for v in videos %}
+  <div class="col-lg-3 col-md-4 col-sm-6">
+    <div class="card h-100">
+      <a href="/videos/{{ v.filename }}/preview">
+        {% if v.has_thumb %}
+        <img src="{{ v.thumbnail }}" class="card-img-top" alt="{{ v.filename }}">
+        {% else %}
+        <div class="card-img-top d-flex align-items-center justify-content-center bg-dark" style="aspect-ratio:16/9;">
+          <i class="bi bi-film" style="font-size:3rem;color:#555;"></i>
+        </div>
+        {% endif %}
+      </a>
+      <div class="card-body d-flex flex-column">
+        <p class="card-title mb-1" title="{{ v.filename }}">{{ v.filename }}</p>
+        <p class="card-text mb-2">
+          <span class="badge bg-dark me-1">{{ v.data }}</span>
+          <span class="badge bg-secondary me-1">{{ v.duration_str }}</span>
+          <span class="badge bg-secondary">{{ v.size_str }}</span>
+          {% if v.width and v.height %}
+          <span class="badge bg-secondary">{{ v.width }}x{{ v.height }}</span>
+          {% endif %}
+        </p>
+        <div class="mt-auto d-flex gap-1 flex-wrap">
+          <a href="/videos/{{ v.filename }}/preview" class="btn btn-sm btn-outline-light">
+            <i class="bi bi-play-fill"></i> Ver
+          </a>
+          <a href="/videos/{{ v.filename }}/cenas" class="btn btn-sm btn-outline-info">
+            <i class="bi bi-magic"></i> Auto
+          </a>
+          <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#cortarModal{{ loop.index }}">
+            <i class="bi bi-scissors"></i> Manual
+          </button>
+          <a href="/videos/{{ v.filename }}" class="btn btn-sm btn-outline-light" download>
+            <i class="bi bi-download"></i>
+          </a>
+          <form action="/deletar/{{ v.filename }}" method="post" class="d-inline">
+            <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Deletar {{ v.filename }}?')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="cortarModal{{ loop.index }}" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form action="/videos/{{ v.filename }}/cortar" method="post">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-scissors"></i> Criar Short</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-secondary small mb-3">Cortando: <strong>{{ v.filename }}</strong> ({{ v.duration_str }})</p>
+            <div class="mb-3">
+              <label class="form-label">Tempo de início (segundos)</label>
+              <input type="number" name="inicio" class="form-control" value="0" min="0" max="{{ v.duration|int }}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Duração (segundos)</label>
+              <input type="number" name="duracao" class="form-control" value="30" min="1" max="60">
+            </div>
+            <p class="text-secondary small mb-0">
+              <i class="bi bi-info-circle"></i> O vídeo será cortado e redimensionado para 1080x1920 (9:16).
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-scissors"></i> Criar Short</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <i class="bi bi-film"></i>
+  <h5>Nenhum vídeo baixado</h5>
+  <p class="text-secondary">Vá para o <a href="/">início</a> e cole uma URL para baixar.</p>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Modo TV - YTFBVIDS{% endblock %}
+{% block content %}
+
+<style>
+  .tv-shell {
+    min-height: calc(100vh - 150px);
+  }
+  .tv-stage {
+    background: #000;
+    border: 1px solid #262626;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 20px 70px rgba(0, 0, 0, .45);
+  }
+  .tv-video-wrap {
+    background: #000;
+    aspect-ratio: 16/9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tv-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 0;
+    background: #000;
+  }
+  .tv-title {
+    color: #fff;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .tv-playlist {
+    max-height: calc(100vh - 190px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .tv-playlist-item {
+    display: grid;
+    grid-template-columns: 82px 1fr;
+    gap: 10px;
+    padding: 9px;
+    border: 1px solid #2b2b2b;
+    border-radius: 12px;
+    background: #171717;
+    color: #e9e9e9;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .tv-playlist-item:hover,
+  .tv-playlist-item.active {
+    border-color: #ff0066;
+    background: #231722;
+    color: #fff;
+  }
+  .tv-playlist-item img,
+  .tv-thumb-placeholder {
+    width: 82px;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #000;
+  }
+  .tv-item-title {
+    font-size: .82rem;
+    font-weight: 700;
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .tv-item-meta {
+    color: #aaa;
+    font-size: .74rem;
+  }
+  @media (max-width: 991px) {
+    .tv-playlist {
+      max-height: 320px;
+    }
+  }
+</style>
+
+<div class="d-flex justify-content-between align-items-center gap-2 mb-3 flex-wrap">
+  <div>
+    <h4 class="mb-0"><i class="bi bi-tv"></i> Modo TV</h4>
+    <small class="text-secondary">Toca automaticamente os vídeos baixados, um após o outro.</small>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <button id="soundToggle" class="btn btn-sm btn-outline-light" type="button">
+      <i class="bi bi-volume-mute"></i> Som
+    </button>
+    <button id="prevVideo" class="btn btn-sm btn-outline-light" type="button">
+      <i class="bi bi-skip-backward"></i> Anterior
+    </button>
+    <button id="nextVideo" class="btn btn-sm btn-outline-light" type="button">
+      Próximo <i class="bi bi-skip-forward"></i>
+    </button>
+    <a href="/videos?sort={{ sort_by }}&order={{ order }}" class="btn btn-sm btn-outline-light">
+      <i class="bi bi-grid"></i> Lista
+    </a>
+  </div>
+</div>
+
+{% if videos %}
+<div class="row g-3 tv-shell">
+  <div class="col-lg-8">
+    <div class="tv-stage">
+      <div class="tv-video-wrap">
+        <video id="tvPlayer" class="tv-video" muted playsinline controls autoplay preload="auto"></video>
+      </div>
+      <div class="p-3">
+        <div id="tvTitle" class="tv-title mb-2"></div>
+        <div id="tvMeta" class="d-flex gap-1 flex-wrap"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="mb-0"><i class="bi bi-list-ul"></i> Playlist</h6>
+          <span class="badge bg-secondary">{{ videos|length }}</span>
+        </div>
+        <div class="tv-playlist" id="tvPlaylist">
+          {% for v in videos %}
+          <button class="tv-playlist-item w-100 text-start mb-2" type="button" data-index="{{ loop.index0 }}">
+            {% if v.has_thumb %}
+            <img src="{{ v.thumbnail }}" alt="{{ v.filename }}">
+            {% else %}
+            <div class="tv-thumb-placeholder d-flex align-items-center justify-content-center">
+              <i class="bi bi-film text-secondary"></i>
+            </div>
+            {% endif %}
+            <div>
+              <div class="tv-item-title">{{ v.filename }}</div>
+              <div class="tv-item-meta">{{ v.duration_str }} · {{ v.size_str }} · {{ v.data }}</div>
+            </div>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="empty-state">
+  <i class="bi bi-tv"></i>
+  <h5>Nenhum vídeo baixado</h5>
+  <p class="text-secondary">Baixe vídeos primeiro para usar o modo TV.</p>
+</div>
+{% endif %}
+
+<script>
+  const playlist = {{ videos|tojson }};
+  const player = document.getElementById('tvPlayer');
+  const title = document.getElementById('tvTitle');
+  const meta = document.getElementById('tvMeta');
+  const items = Array.from(document.querySelectorAll('.tv-playlist-item'));
+  const soundToggle = document.getElementById('soundToggle');
+  const nextButton = document.getElementById('nextVideo');
+  const prevButton = document.getElementById('prevVideo');
+  let current = 0;
+  let soundEnabled = false;
+
+  function fileUrl(name) {
+    return '/videos/' + encodeURIComponent(name).replace(/%2F/g, '/');
+  }
+
+  function setActive(index) {
+    items.forEach((item) => item.classList.remove('active'));
+    const active = items[index];
+    if (active) {
+      active.classList.add('active');
+      active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  function loadVideo(index) {
+    if (!playlist.length || !player) return;
+    current = (index + playlist.length) % playlist.length;
+    const video = playlist[current];
+    player.src = fileUrl(video.filename);
+    player.muted = !soundEnabled;
+    title.textContent = video.filename;
+    meta.innerHTML = `
+      <span class="badge bg-dark">${video.data}</span>
+      <span class="badge bg-secondary">${video.duration_str}</span>
+      <span class="badge bg-secondary">${video.size_str}</span>
+      ${video.width && video.height ? `<span class="badge bg-secondary">${video.width}x${video.height}</span>` : ''}
+    `;
+    setActive(current);
+    player.play().catch(() => {});
+  }
+
+  player?.addEventListener('ended', () => loadVideo(current + 1));
+  nextButton?.addEventListener('click', () => loadVideo(current + 1));
+  prevButton?.addEventListener('click', () => loadVideo(current - 1));
+
+  items.forEach((item) => {
+    item.addEventListener('click', () => loadVideo(Number(item.dataset.index)));
+  });
+
+  soundToggle?.addEventListener('click', () => {
+    soundEnabled = !soundEnabled;
+    if (player) player.muted = !soundEnabled;
+    soundToggle.innerHTML = soundEnabled
+      ? '<i class="bi bi-volume-up"></i> Som'
+      : '<i class="bi bi-volume-mute"></i> Som';
+    player?.play().catch(() => {});
+  });
+
+  if (playlist.length) loadVideo(0);
+</script>
+
+{% endblock %}

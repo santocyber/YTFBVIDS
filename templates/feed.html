@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Feed de Shorts - YTFBVIDS{% endblock %}
+{% block content %}
+
+<style>
+  .feed-toolbar {
+    max-width: 520px;
+    margin: 0 auto 12px;
+  }
+  .feed-container {
+    height: calc(100vh - 150px);
+    max-width: 520px;
+    margin: 0 auto;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    scrollbar-width: none;
+    background: #000;
+    border: 1px solid #252525;
+    border-radius: 18px;
+  }
+  .feed-container::-webkit-scrollbar {
+    display: none;
+  }
+  .feed-item {
+    position: relative;
+    height: calc(100vh - 150px);
+    min-height: 560px;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+  }
+  .feed-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 0;
+    background: #000;
+  }
+  .feed-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 80px 16px 16px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.86));
+    pointer-events: none;
+  }
+  .feed-title {
+    color: #fff;
+    font-weight: 700;
+    line-height: 1.25;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, .8);
+  }
+  .feed-meta .badge {
+    background: rgba(20, 20, 20, .82) !important;
+  }
+  .feed-actions {
+    position: absolute;
+    right: 12px;
+    bottom: 98px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .feed-actions a,
+  .feed-actions button {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, .58);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, .22);
+  }
+  .feed-actions a:hover,
+  .feed-actions button:hover {
+    background: #ff0066;
+    color: #fff;
+  }
+  @media (max-width: 576px) {
+    .feed-container,
+    .feed-item {
+      height: calc(100vh - 120px);
+      min-height: 520px;
+      border-radius: 0;
+      border-left: 0;
+      border-right: 0;
+    }
+  }
+</style>
+
+<div class="feed-toolbar d-flex justify-content-between align-items-center gap-2 flex-wrap">
+  <div>
+    <h5 class="mb-0"><i class="bi bi-phone"></i> Feed de Shorts</h5>
+    <small class="text-secondary">Role para passar. Ao terminar, passa automaticamente.</small>
+  </div>
+  <div class="d-flex gap-2">
+    <button id="soundToggle" class="btn btn-sm btn-outline-light" type="button">
+      <i class="bi bi-volume-mute"></i> Som
+    </button>
+    <a href="/shorts?sort={{ sort_by }}&order={{ order }}" class="btn btn-sm btn-outline-light">
+      <i class="bi bi-grid"></i> Lista
+    </a>
+  </div>
+</div>
+
+{% if shorts %}
+<div class="feed-container" id="feedContainer">
+  {% for s in shorts %}
+  <section class="feed-item" data-index="{{ loop.index0 }}">
+    <video class="feed-video" muted playsinline controls preload="metadata">
+      <source src="/shorts/{{ s.filename }}" type="video/mp4">
+    </video>
+
+    <div class="feed-actions">
+      <a href="/shorts/{{ s.filename }}/preview" title="Abrir preview">
+        <i class="bi bi-arrows-fullscreen"></i>
+      </a>
+      <a href="/shorts/{{ s.filename }}" download title="Download">
+        <i class="bi bi-download"></i>
+      </a>
+    </div>
+
+    <div class="feed-overlay">
+      <div class="feed-title mb-2">{{ s.filename }}</div>
+      <div class="feed-meta d-flex gap-1 flex-wrap">
+        <span class="badge">{{ s.data }}</span>
+        <span class="badge">{{ s.duration_str }}</span>
+        <span class="badge">{{ s.size_str }}</span>
+        {% if s.width and s.height %}<span class="badge">{{ s.width }}x{{ s.height }}</span>{% endif %}
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <i class="bi bi-phone"></i>
+  <h5>Nenhum short para exibir</h5>
+  <p class="text-secondary">Crie shorts primeiro para usar o modo feed.</p>
+</div>
+{% endif %}
+
+<script>
+  const container = document.getElementById('feedContainer');
+  const videos = Array.from(document.querySelectorAll('.feed-video'));
+  const soundToggle = document.getElementById('soundToggle');
+  let soundEnabled = false;
+
+  function pauseAllExcept(activeVideo) {
+    videos.forEach((video) => {
+      if (video !== activeVideo) {
+        video.pause();
+        video.currentTime = Math.max(0, video.currentTime);
+      }
+    });
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const video = entry.target.querySelector('video');
+      if (!video) return;
+
+      if (entry.isIntersecting) {
+        pauseAllExcept(video);
+        video.muted = !soundEnabled;
+        video.play().catch(() => {});
+      } else {
+        video.pause();
+      }
+    });
+  }, { root: container, threshold: 0.72 });
+
+  document.querySelectorAll('.feed-item').forEach((item) => observer.observe(item));
+
+  videos.forEach((video) => {
+    video.addEventListener('ended', () => {
+      const item = video.closest('.feed-item');
+      const next = item ? item.nextElementSibling : null;
+      if (next) {
+        next.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        const first = document.querySelector('.feed-item');
+        if (first) {
+          first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const firstVideo = first.querySelector('video');
+          if (firstVideo) firstVideo.currentTime = 0;
+        }
+      }
+    });
+  });
+
+  soundToggle?.addEventListener('click', () => {
+    soundEnabled = !soundEnabled;
+    videos.forEach((video) => video.muted = !soundEnabled);
+    soundToggle.innerHTML = soundEnabled
+      ? '<i class="bi bi-volume-up"></i> Som'
+      : '<i class="bi bi-volume-mute"></i> Som';
+  });
+</script>
+
+{% endblock %}
