@@ -56,7 +56,7 @@ yt-dlp --version
 ## Instalação
 
 ```bash
-git clone https://github.com/seu-usuario/YTFBVIDS.git
+git clone https://github.com/santocyber/YTFBVIDS.git
 cd YTFBVIDS
 pip install -r requirements.txt
 ```
